@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="MAIN" Id="{a967ae7f-2447-4741-99c2-9f2a87c804ab}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	
+	
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[PRG_VLS();
+
+//valves
+FEE_VGC_02(
+	i_stUSG:= FEE_KMONO_GCC_01.IG, 
+	i_stDSG:= FEE_KMONO_GCC_01.IG , 
+	i_xDis_DPIlk:= FALSE, 
+	i_xEPS_OPN_OK:= , 
+	i_xEPS_CLS_OK:= ,
+	i_xPMPS_OK:= , 
+	i_xExt_OK:= TRUE, 
+	i_xOverrideMode:= , 
+	i_xReset:= , 
+	iq_stValve=>);
+
+FEE_VGC_03(
+	i_stUSG:=FEE_KMONO_GCC_01.IG, 
+	i_stDSG:= FEE_M1L_GCC_01.IG , 
+	i_xDis_DPIlk:= FALSE, 
+	i_xEPS_OPN_OK:= TRUE, 
+	i_xEPS_CLS_OK:= TRUE,
+	i_xPMPS_OK:= TRUE, 
+	i_xExt_OK:= TRUE, 
+	i_xOverrideMode:= , 
+	i_xReset:= , 
+	iq_stValve=> , 
+	xMPS_OK=> , 
+	io_fbFFHWO:= g_FastFaultOutput1 );
+
+FEE_VGC_04(
+	i_stUSG:= FEE_GCC_03.IG, 
+	i_stDSG:= FEE_GCC_03.IG , 
+	i_xDis_DPIlk:= FALSE, 
+	i_xEPS_OPN_OK:= TRUE, 
+	i_xEPS_CLS_OK:= TRUE,
+	i_xPMPS_OK:= TRUE, 
+	i_xExt_OK:= TRUE, 
+	i_xOverrideMode:= , 
+	i_xReset:= , 
+	iq_stValve=> , 
+	xMPS_OK=> , 
+	io_fbFFHWO:= g_FastFaultOutput2 );	
+	
+// gauges and pip
+FEE_KMONO_GPI_01(PG=>);
+FEE_KMONO_GCC_01(PG:=FEE_KMONO_GPI_01.PG);
+FEE_KMONO_PIP_01(i_stGauge:= FEE_KMONO_GCC_01.IG);
+
+FEE_GPI_03(PG=>);
+FEE_GCC_03(PG:=FEE_KMONO_GPI_01.PG);
+
+FEE_PIP_02(i_stGauge:= FEE_GCC_03.IG);
+
+FEE_M1L_GPI_01(PG=>);
+FEE_M1L_GCC_01(PG:=FEE_M1L_GPI_01.PG);
+FEE_M1L_PIP_01(i_stGauge:= FEE_M1L_GCC_01.IG);
+
+FEE_GPI_04(PG=>);
+FEE_GCC_04(PG:=FEE_GPI_04.PG);
+FEE_PIP_03(i_stGauge:= FEE_GCC_04.IG);
+
+
+
+/// fast fault
+
+g_FastFaultOutput1.EvaluateOutput(i_xVeto:=PMPS_GVL.stCurrentBeamParameters.aStoppers[PMPS.L_Stopper.ST1]);
+g_FastFaultOutput2.EvaluateOutput(i_xVeto:=PMPS_GVL.stCurrentBeamParameters.aStoppers[PMPS.L_Stopper.ST1]);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

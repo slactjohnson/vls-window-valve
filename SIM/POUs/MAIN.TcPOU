@@ -1,0 +1,98 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="MAIN" Id="{7a4f7bec-2622-466f-93e1-8ef5c35f70ad}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	
+	(*Valves*)
+	fb_VGC_1 : FB_VacuumValve;
+	fb_VGC_2 : FB_VacuumValve;
+	fb_VGC_W : FB_VacuumValve_Vent; //NO valve
+
+
+	(*Valves*)
+	fb_VGC_02 : FB_VacuumValve;
+	fb_VGC_03 : FB_VacuumValve;
+	fb_VGC_04 : FB_VacuumValve;
+	
+	
+	(*Gauges*)
+	fbMKS500_VGCC_KMONO_01	:	FB_MKS_500;
+	fbMKS500_VGCC_03	:	FB_MKS_500;
+	fbMKS500_VGCC_M1L_01	:	FB_MKS_500;
+	fbMKS500_VGCC_04	:	FB_MKS_500;
+	
+	fbMKS500_VGPI_KMONO_01	:	FB_MKS_275;
+	fbMKS500_VGPI_03	:	FB_MKS_275;
+	fbMKS500_VGPI_M1L_01	:	FB_MKS_275;
+	fbMKS500_VGPI_04	:	FB_MKS_275;
+	
+	(*Ion Pumps*)
+	fb_PIP_KMONO_01	:	FB_GAM_PIP;
+	fb_PIP_02	:	FB_GAM_PIP;
+	fb_PIP_M1L_01	:	FB_GAM_PIP;
+	fb_PIP_03	:	FB_GAM_PIP;
+	
+	
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[OverridePressure();
+
+(*Valves*)
+
+fb_VGC_1(stAVol:=stVl_Start , 
+	stBVol:= stVl_KMONO,
+	stValve:= VGC_1
+	);
+
+fb_VGC_2(stAVol:=stVl_Start , 
+	stBVol:= stVl_KMONO,
+	stValve:= VGC_2
+	);
+fb_VGC_W(stAVol:=stVl_Start , 
+	stBVol:= stVl_KMONO,
+	stValve:= VGC_W
+	);
+
+
+
+fb_VGC_02(stAVol:=stVl_Start , 
+	stBVol:= stVl_KMONO,
+	stValve:= S_FEE_VGC_02
+	);
+	
+fb_VGC_03(stAVol:= stVl_KMONO, 
+	stBVol:= stVl_M1L0,
+	stValve:= S_FEE_VGC_03
+	);	
+	
+fb_VGC_04(stAVol:= stVl_M1L0, 
+	stBVol:= stVl_End,
+	stValve:= S_FEE_VGC_04
+	);	
+	
+
+(*Gauges*)
+fbMKS500_VGCC_KMONO_01(stVolume := stVl_KMONO, stGauge := S_FEE_KMONO_GCC_01);
+fbMKS500_VGPI_KMONO_01(stVolume := stVl_KMONO, stGauge := S_FEE_KMONO_GPI_01);
+
+fbMKS500_VGCC_03(stVolume := stVl_KMONO, stGauge := S_FEE_GCC_03);
+fbMKS500_VGPI_03(stVolume := stVl_KMONO, stGauge := S_FEE_GPI_03);
+
+fbMKS500_VGCC_M1L_01(stVolume := stVl_M1L0, stGauge := S_FEE_MIL_GCC_02);
+fbMKS500_VGPI_M1L_01(stVolume := stVl_M1L0, stGauge := S_FEE_M1L_GPI_02);
+
+fbMKS500_VGCC_04(stVolume := stVl_M1L0, stGauge := S_FEE_GCC_04);
+fbMKS500_VGPI_04(stVolume := stVl_M1L0, stGauge := S_FEE_GPI_04);
+
+
+(*Ion Pumps*)
+fb_PIP_KMONO_01(stVolume:= stVl_KMONO, stPip:= S_FEE_KMONO_PIP_01);
+fb_PIP_02(stVolume:= stVl_KMONO, stPip:= S_FEE_PIP_02);
+fb_PIP_M1L_01(stVolume:= stVl_M1L0, stPip:= S_FEE_M1L_PIP_01);
+fb_PIP_03(stVolume:= stVl_M1L0, stPip:= S_FEE_PIP_03);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

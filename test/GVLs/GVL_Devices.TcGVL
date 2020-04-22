@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <GVL Name="GVL_Devices" Id="{d37579d1-e275-4fd3-95b0-ddb5aa7bb0cd}">
+    <Declaration><![CDATA[VAR_GLOBAL
+	
+	
+
+/////////////////////
+	{attribute 'pytmc' := '
+    pv: FEE:VGC:02
+	'}
+	FEE_VGC_02: FB_VGC;
+	{attribute 'pytmc' := '
+    pv: FEE:KMONO:GPI:01
+	'}
+	FEE_KMONO_GPI_01: FB_MKS275;
+	{attribute 'pytmc' := '
+    pv: FEE:KMONO:GCC:01
+	'}
+	FEE_KMONO_GCC_01: FB_MKS500;
+	{attribute 'pytmc' := '
+    pv: FEE:KMONO:PIP:01
+	'}
+	FEE_KMONO_PIP_01: FB_PIP_Gamma;
+	{attribute 'pytmc' := '
+    pv: FEE:PIP:02
+	'}
+	FEE_PIP_02: FB_PIP_Gamma;
+	{attribute 'pytmc' := '
+    pv: FEE:GPI:03
+	'}
+	FEE_GPI_03: FB_MKS275;
+	{attribute 'pytmc' := '
+    pv: FEE:GCC:03
+	'}
+	FEE_GCC_03: FB_MKS500;
+	{attribute 'pytmc' := '
+    pv: FEE:VGC:03
+	'}
+	FEE_VGC_03: FB_VGC_FFO;
+	{attribute 'pytmc' := '
+    pv: FEE:M1L:GPI:01
+	'}
+	FEE_M1L_GPI_01: FB_MKS275;
+	{attribute 'pytmc' := '
+    pv: FEE:M1L:GCC:03
+	'}
+	FEE_M1L_GCC_01: FB_MKS500;
+	{attribute 'pytmc' := '
+    pv: FEE:M1L:PIP:01
+	'}
+	FEE_M1L_PIP_01: FB_PIP_Gamma;
+	{attribute 'pytmc' := '
+    pv: FEE:PIP:03
+	'}
+	FEE_PIP_03: FB_PIP_Gamma;
+	{attribute 'pytmc' := '
+    pv: FEE:GPI:04
+	'}
+	FEE_GPI_04: FB_MKS275;
+	{attribute 'pytmc' := '
+    pv: FEE:GCC:04
+	'}
+	FEE_GCC_04: FB_MKS500;
+	{attribute 'pytmc' := '
+    pv: FEE:VGC:04
+	'}
+	FEE_VGC_04: FB_VGC_FFO;
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

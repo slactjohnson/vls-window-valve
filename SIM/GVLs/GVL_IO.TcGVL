@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4020.12">
+  <GVL Name="GVL_IO" Id="{12fd0696-f7f3-453e-963b-10a799ae1ec5}">
+    <Declaration><![CDATA[VAR_GLOBAL
+	
+(*pumps*)
+(*
+S_FEE_KMONO_PIP_01_xON AT%I*:BOOL;
+S_FEE_PIP_02_xON AT%I*:BOOL;
+S_FEE_M1L_PIP_01_xON AT%I*:BOOL;
+S_FEE_PIP_03_xON AT%I*:BOOL;*)
+
+
+(*Valves*)
+
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

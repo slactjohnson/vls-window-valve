@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <GVL Name="GVL_SimDevices" Id="{0f512ac4-db84-4296-bd8a-816753567f1c}">
+    <Declaration><![CDATA[VAR_GLOBAL
+	Global_Leak	: REAL := 0;
+	Global_Pressure : REAL := 0.0079;
+	New_Pressure : REAL := 22.0; //Torr
+	Global_OverridePressure	: BOOL := FALSE;//initially set to be false
+(* Volumes *)
+	
+	//-1
+	stVl_Start	:	ST_Volume:=(
+		rPressure := Global_Pressure,
+		rVolume := 1E3,
+		rVLeak	:= Global_Leak
+		);
+		
+	//0) KMONO
+	stVl_KMONO	:	ST_Volume:=(
+		rPressure := Global_Pressure,
+		rVolume := 1E3,
+		rVLeak	:= Global_Leak
+		);
+	
+	//1) M1L0
+	stVl_M1L0	:	ST_Volume:=(
+		rPressure := Global_Pressure,
+		rVolume := 1E3,
+		rVLeak	:= Global_Leak
+		);
+		
+		//1) End
+	stVl_End	:	ST_Volume:=(
+		rPressure := Global_Pressure,
+		rVolume := 1E3,
+		rVLeak	:= Global_Leak
+		);
+		
+(*Valves*)
+	VGC_1 : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+	VGC_2 : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+	VGC_W : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+	
+	S_FEE_VGC_02 : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+	
+	S_FEE_VGC_03 : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+	
+	S_FEE_VGC_04 : ST_VacuumValve:=(
+		q_xClsLS := TRUE,
+		q_xOpnLS := FALSE
+	);
+
+(*Gauges*)
+	S_FEE_KMONO_GPI_01 : ST_MKS_275 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_KMONO_GCC_01 : ST_MKS_500 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_GPI_03 : ST_MKS_275 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_GCC_03 : ST_MKS_500 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_M1L_GPI_02 : ST_MKS_275 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_MIL_GCC_02 : ST_MKS_500 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_GPI_04 : ST_MKS_275 :=(
+		q_xGaugeConnected := TRUE
+	);
+	S_FEE_GCC_04 : ST_MKS_500 :=(
+		q_xGaugeConnected := TRUE
+	);
+	
+(*ION Pumps*)
+	S_FEE_KMONO_PIP_01 : ST_GAM_PIP; 
+	S_FEE_PIP_02 : ST_GAM_PIP; 
+	S_FEE_M1L_PIP_01 : ST_GAM_PIP; 
+	S_FEE_PIP_03 : ST_GAM_PIP; 
+
+(*Turbo and VRC*)
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

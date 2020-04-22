@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4020.12">
+  <POU Name="SoftIO" Id="{f0450cc5-4a7b-4096-8753-bb01176cde07}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM SoftIO
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*S_FEE_KMONO_PIP_01.xOn := S_FEE_KMONO_PIP_01_xON;
+S_FEE_PIP_02.xOn := S_FEE_PIP_02_xON ;
+S_FEE_M1L_PIP_01.xOn := S_FEE_M1L_PIP_01_xON;
+S_FEE_PIP_03.xOn := S_FEE_PIP_03_xON;*)]]></ST>
+    </Implementation>
+    <LineIds Name="SoftIO">
+      <LineId Id="6" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

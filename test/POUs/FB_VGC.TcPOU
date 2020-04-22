@@ -1,0 +1,441 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="FB_VGC" Id="{e37ddbb4-4f83-44d0-bab6-047e5a609a6c}" SpecialFunc="None">
+    <Declaration><![CDATA[(* This function block implements basic functionality for Isolation Gate Valves*)
+(* This function block interlock is as follows:
+1. The valve can be opened when the difference between the pressures on both sides is
+less than the maximum differential pressure.
+2. This rule persists until the pressures on both sides are lower than the vacuum-setpoint.
+3. Once at-vac, the valve will close if the pressure on either side rises above the setpoint.*)
+(*This function block also implements PMPS and EPS interlocks, as well as Fast MPS trigger*)
+FUNCTION_BLOCK FB_VGC Extends FB_ValveBase
+VAR_IN_OUT
+END_VAR
+VAR_INPUT
+	(*Upstream Gauge, usually ion gauge*)
+	i_stUSG	:	ST_VG;
+	(*Downstream Gauge, usually ion gauge*)
+	i_stDSG	:	ST_VG;
+	{attribute 'pytmc' := '
+    pv: Dis_DPIlk
+	'}
+	i_xDis_DPIlk : BOOL := FALSE;  (* Set to true when calling the function to disable the differential pressure interlock *)
+	{attribute 'pytmc' := '
+    pv: EPS_OPN_OK
+	'}
+	i_xEPS_OPN_OK:	BOOL	:= TRUE; (*External EPS interlock, Set to TRUE when no EPS interlock is required, otherwise set to correct interlock signal*)
+	{attribute 'pytmc' := '
+    pv: EPS_CLS_OK
+	'}
+	i_xEPS_CLS_OK:	BOOL	:= TRUE; (*External EPS interlock, Set to TRUE when no EPS interlock is required, otherwise set to correct interlock signal*)
+	
+	{attribute 'pytmc' := '
+    pv: MPS_OK
+	'}
+	i_xPMPS_OK:	BOOL	; (*External MPS interlock, Set to TRUE when no PMPS interlock is required*)
+	i_xExt_OK: BOOL; (*Other External Interlock, Set to True when no external interlock is required. If this Valve is neigboring a Fast Shutter this should be linked to the fast shutter xVAC_FAULT_OK*)
+	i_xOverrideMode : BOOL; (*To be linked to global override bit. This Overrides Vacuum logic only, EPS, MPS and PMPS are still enforces*)
+	// Reset fault
+	{attribute 'pytmc' := '
+    pv: FF_Reset
+	'}
+    i_xReset: BOOL;
+END_VAR
+VAR_OUTPUT
+	{attribute 'pytmc' := '
+    pv:
+	'}
+	iq_stValve : ST_VGC; (* All valve data and states will be in this struct*)
+	
+END_VAR
+
+VAR
+	{attribute 'instance-path'}
+	{attribute 'noinit'}
+	sPath: STRING;
+	rDiffPressAllowed	:	REAL := 22.5; // Torr, Default value comes from Vat Valve Manual
+	rDiffPress : REAL;
+	set : BOOL;
+    reset: BOOL;
+	  
+	xFirstPass	:	BOOL;
+	fbFSInit		:	R_TRIG;
+	
+	tonDelOK : TON;
+	rtOK	:	R_TRIG;
+	tonOvrd	:	TON;
+	rtOpen	:	R_TRIG;
+	ftClose: F_TRIG;
+	
+	tDelOK	:	TIME := T#60S;
+	tOvrd	:	TIME := T#10s;
+	ePrevState : E_VGC;
+	
+	(* Timeouts*)
+	tTimeOutDuration: TIME:= T#10S;
+	tOPNtimeout: TON;
+	tCLStimeout:TON;
+	
+	
+	
+	(*IO*)
+	i_xOpnLS	AT%I*: BOOL;
+	i_xClsLS	AT%I*: BOOL;
+	q_xOPN_DO	AT%Q*: BOOL;
+    
+  
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* Vacuum gate valve
+A. Wallace
+16-10-29
+
+A gate valve isolates vacuum volumes. Ideally it can be opened when a system is vented
+to allow for faster pumping, and will close when high vacuum is lost.
+
+The following behavior is good for valves in something like a gas attenuator.
+This function block does the following:
+1. The valve can be opened when the difference between the pressures on both sides is
+less than the maximum differential pressure.
+2. This rule persists until the pressures on both sides are lower than the vacuum-setpoint.
+3. Once at-vac, the valve will close if the pressure on either side rises above the setpoint.
+
+Alternatively, the differential pressure interlock can be disabled so the valve may only be opened
+if the pressure on both sides is lower than the at-vacuum-setpoint. You want this behavior if 
+the valve is to be used in a UHV section.
+
+Hysteresis is employed to ensure a smooth transition from vented/pumping down, to at-vac.
+
+Finally, an override system is built in so you can bypass all the interlocking logic and 
+get back online.
+*)
+(* 10/1/2018 Margaret Ghaly included EPS, PMPS Checkes and MPS trigger signals*)
+
+ACT_Init();
+(*IO Mapping*)
+ACT_IO();
+A_Override();
+A_PositionCheck();
+ACT_ResetAlarms();
+A_EPS();
+// Main logic the very last call right before IO
+ACT_Main();
+(*IO Mapping*)
+ACT_IO();
+A_Logger();
+
+
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="A_EPS" Id="{b05f8e4a-040e-49d7-bd2e-ef1bade68a37}">
+      <Implementation>
+        <ST><![CDATA[ftClose(CLK:= iq_stValve.pv_xOPN_SW);
+rtOpen(CLK:= iq_stValve.pv_xOPN_SW);
+
+
+(* If Epics Command to close the Valve, check if PMPS and EPS are ok, otherwise Keep command set to open valve *)
+// Check a falling edge on the open switch, which means that the valve is commanded to close
+IF (ftClose.Q) THEN
+	// check that the valve is allowed to close, and that it was already in the open position otherwise, he command is to be ingonred and reset
+	IF NOT(i_xEPS_CLS_OK) AND (iq_stValve.q_xOPN_DO) THEN iq_stValve.pv_xOPN_SW := TRUE; END_IF;
+END_IF
+
+// if switch pv has been switched to open
+IF (rtOpen.Q) THEN 
+	// if the EPS interlock the valve from openening, the switch pv is reset to false i.e ignoring the action
+	IF NOT (i_xEPS_OPN_OK) THEN  iq_stValve.pv_xOPN_SW := FALSE; END_IF
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="A_Logger" Id="{9b5c7032-aaf0-4ef5-a96c-6066bfd2cd34}">
+      <Implementation>
+        <ST><![CDATA[// Log valve timeouts
+tErrorPresent(CLK:=iq_stValve.bErrorPresent);
+IF tErrorPresent.Q THEN fbLogger(sMsg:=iq_stValve.sErrorMessage, eSevr:=TcEventSeverity.Warning); END_IF
+
+// Log valve open
+tAction(CLK:= iq_stValve.q_xOPN_DO);
+IF tAction.Q THEN fbLogger(sMsg:='Valve commanded open', eSevr:=TcEventSeverity.Info); END_IF
+
+// Log override mode enabled
+tOverrideActivated(CLK:= (tonOvrd.Q AND i_xOverrideMode));
+IF tOverrideActivated.Q THEN fbLogger(sMsg:='Valve override mode activated', eSevr:=TcEventSeverity.Warning); END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="A_Override" Id="{4ca4d8ed-c369-44fd-b7ab-730f1d3ef773}">
+      <Implementation>
+        <ST><![CDATA[(* Override logic *)
+(* Goal: give ability to override, but do so in a way that people won't forget it.
+Solution: Override only after ten seconds of override, protect against blips,
+when the valve permission goes true for more than ten seconds consistently, remove override
+*)
+
+tonDelOK(IN:=iq_stValve.xOPN_OK, PT:=tDelOK);
+rtOK(CLK:=tonDelOK.Q);
+IF rtOK.Q AND iq_stValve.pv_xOvrdOpn THEN 
+	if (iq_stValve.eState = OPEN) AND (i_xOverrideMode) AND (iq_stValve.pv_xOvrdOpn) THEN iq_stValve.pv_xOPN_SW := TRUE; END_IF //for seamless transition   
+   	iq_stValve.pv_xOvrdOpn :=FALSE; // reset the overrride open bit
+	//Log
+    fbLogger(sMsg:='Override expired', eSevr:=TcEventSeverity.Warning);
+    
+END_IF
+
+//Override timer
+tonOvrd(IN:=iq_stValve.pv_xOvrdOpn, PT:=tOvrd);
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="A_PositionCheck" Id="{095a7162-ca75-49b0-a03d-724fcf0aadc3}">
+      <Implementation>
+        <ST><![CDATA[
+
+///Check valve position
+IF iq_stValve.i_xClsLS AND  iq_stValve.i_xOpnLS THEN
+	iq_stValve.eState:=INVALID;
+ELSIF NOT iq_stValve.i_xClsLS AND iq_stValve.i_xOpnLS AND iq_stValve.q_xOPN_DO THEN 
+	iq_stValve.eState:=OPEN;
+ELSIF iq_stValve.i_xClsLS AND NOT iq_stValve.i_xOpnLS AND NOT iq_stValve.q_xOPN_DO THEN 
+	iq_stValve.eState:=CLOSED;
+ELSIF NOT iq_stValve.i_xClsLS AND NOT iq_stValve.i_xOpnLS THEN 
+	iq_stValve.eState:=MOVING;
+ELSE
+	iq_stValve.eState:=INVALID;
+END_IF
+
+
+///Check valve moving postion timout
+IF NOT iq_stValve.i_xClsLS AND tCLStimeout.Q THEN 
+	iq_stValve.bErrorPresent := TRUE;
+	iq_stValve.sErrorMessage := ' Close Timeout';
+ELSIF NOT iq_stValve.i_xOpnLS AND tOPNtimeout.Q THEN 
+	iq_stValve.bErrorPresent := TRUE; 
+	iq_stValve.sErrorMessage := ' Open Timeout';
+END_IF
+IF (iq_stValve.eState=INVALID) THEN
+	iq_stValve.bErrorPresent := TRUE; 
+	iq_stValve.sErrorMessage := CONCAT(sPath,' Invalid Valve Position');
+END_IF
+
+
+(*Timers*)
+tOPNtimeout(IN:= iq_stValve.q_xOPN_DO, PT := tTimeOutDuration );
+tCLStimeout(IN:= NOT iq_stValve.q_xOPN_DO, PT := tTimeOutDuration);
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Init" Id="{66bcaf66-8509-4856-bafe-ba2b2a50272a}">
+      <Implementation>
+        <ST><![CDATA[fbFSInit( CLK := TRUE, Q => xFirstPass);
+(* On first PLC pass, put valve into vented state, which implies a closed valve *)
+IF xFirstPass THEN
+	iq_stValve.eVGC_State := Vented;
+	iq_stValve.pv_xOPN_SW := FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_IO" Id="{f0b5f2cb-4f07-45bf-b785-3fe9feef6b6b}">
+      <Implementation>
+        <ST><![CDATA[(*inputs*)
+iq_stValve.i_xOpnLS := 	i_xOpnLS;
+iq_stValve.i_xClsLS:=	i_xClsLS;
+iq_stValve.xEXT_OK := i_xEXT_OK;
+iq_stValve.xOverrideMode := i_xOverrideMode;
+(*outputs*)
+q_xOPN_DO:= iq_stValve.q_xOPN_DO;
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Main" Id="{1047a52b-e201-4bc3-8502-461c36e86ae8}">
+      <Implementation>
+        <ST><![CDATA[
+// Update hysteresis
+///////////////////////////////////////////////////
+IF iq_stValve.rAT_VAC_SP_LAST <> iq_stValve.rAT_VAC_SP OR xFirstPass THEN
+	iq_stValve.rAT_VAC_SP_LAST := iq_stValve.rAT_VAC_SP;
+	iq_stValve.rAT_VAC_HYS := iq_stValve.rHYST_PERC * iq_stValve.rAT_VAC_SP;
+END_IF
+
+iq_stValve.rAT_VAC_HYS := LIMIT(0, iq_stValve.rAT_VAC_HYS, iq_stValve.rAT_VAC_SP);
+IF iq_stValve.rAT_VAC_SP <> 0 THEN
+	IF iq_stValve.rHYST_PERC <> (iq_stValve.rAT_VAC_HYS / iq_stValve.rAT_VAC_SP) THEN
+		iq_stValve.rHYST_PERC := LIMIT(0, (iq_stValve.rAT_VAC_HYS / iq_stValve.rAT_VAC_SP) ,1);
+	END_IF
+END_IF
+// Valve at vacuum check
+///////////////////////////////////////////////////
+	set := i_stUSG.rPRESS < iq_stValve.rAT_VAC_HYS AND i_stDSG.rPRESS < iq_stValve.rAT_VAC_HYS AND i_stUSG.xPRESS_OK AND i_stDSG.xPRESS_OK;
+ 	iq_stValve.xAT_VAC S= set;
+	reset := i_stUSG.rPRESS > iq_stValve.rAT_VAC_SP OR i_stDSG.rPRESS > iq_stValve.rAT_VAC_SP OR NOT i_stUSG.xPRESS_OK OR NOT i_stDSG.xPRESS_OK;
+	iq_stValve.xAT_VAC R= reset;
+	
+// Differential pressure check
+///////////////////////////////////////////////////
+	(* Calc the differential pressure across the valve *)
+	rDiffPress := ABS(i_stUSG.rPRESS - i_stDSG.rPRESS);
+	
+	(* As long as the differential pressure is less than 30mbar, the valve is allowed to open *)
+	IF rDiffPress <= rDiffPressAllowed AND i_stUSG.xPRESS_OK AND i_stDSG.xPRESS_OK THEN
+		iq_stValve.xDP_OK := TRUE;
+	ELSE
+		iq_stValve.xDP_OK	:= FALSE;
+		(* If the differential pressure is exceeded, even when the valve is open,
+		the state is unexpected and triggers a fault, because it suggests that something
+		is wrong with the valve, or gauges or mapping or there is a major leak on one side.*)
+		iq_stValve.eVGC_State := ERR_DiffPress;
+        iq_stValve.xERR_DifPres := TRUE;
+	END_IF
+
+// Valve state
+///////////////////////////////////////////////////
+CASE iq_stValve.eVGC_State OF
+	Vented: (* The Vented state is used during pump down *)
+        //Log new state
+        IF ePrevState <> iq_stValve.eVGC_State THEN
+            fbLogger(sMsg:='Vented', eSevr:=TcEventSeverity.Info);
+            ePrevState := iq_stValve.eVGC_State;
+		END_IF
+        
+		(* Assuming the pump down went well, we are now at vacuum on both sides,
+		so we move to the vacuum state, otherwise remain in the vented state *)
+		IF iq_stValve.xAT_VAC AND (NOT (iq_stValve.xERR_DifPres)) AND NOT (NOT (iq_stValve.xERR_SP)) and NOT (NOT (iq_stValve.xERR_ExtFault))THEN
+		    iq_stValve.eVGC_State := AtVacuum;
+		ELSE
+		    iq_stValve.eVGC_State := Vented;
+		END_IF
+	
+	AtVacuum:
+        //Log new state
+        IF ePrevState <> iq_stValve.eVGC_State THEN
+            fbLogger(sMsg:='Vacuum setpoint satisfied', eSevr:=TcEventSeverity.Info);
+            ePrevState := iq_stValve.eVGC_State;
+		END_IF
+        
+		IF iq_stValve.xAT_VAC THEN
+		(* If both pressure setpoints are made,
+		then enable the differential pressure interlock, regardless of the valve state
+		assuming we're using some kind of ion gauge where a pressure setpoint cannot be higher than 1E-4 T *)
+		iq_stValve.eVGC_State := AtVacuum;
+				
+		ELSE
+		
+			(* If the valve is open (or in an unknown state) and either gauge is not at it's vacuum setpoint,
+			we have a loss of vacuum error *)
+			IF (iq_stValve.i_xOpnLS OR (NOT iq_stValve.i_xOpnLS AND NOT iq_stValve.i_xClsLS)) THEN
+				iq_stValve.eVGC_State := ERR_LostVac;
+				iq_stValve.xERR_SP := TRUE; //TAW changed this to the ERR_SP bool because I think that's what it was intended to be?
+		
+			(* Alternatively, if the valve is already closed and we lose pressure on one side,
+			it was probably intentional venting, so we calmly move back to venting mode, and
+			disable the differential pressure interlock *) //?? 
+			ELSIF iq_stValve.i_xClsLS THEN
+				iq_stValve.eVGC_State := Vented;
+			END_IF
+		
+		END_IF
+	
+	ERR_DiffPress:
+        //Log new state
+        IF ePrevState <> iq_stValve.eVGC_State THEN
+            fbLogger(sMsg:='Potential accidental vent.', eSevr:=TcEventSeverity.Critical);
+            ePrevState := iq_stValve.eVGC_State;
+		END_IF
+        
+		IF NOT (iq_stValve.xERR_DifPres) THEN
+			iq_stValve.eVGC_State := Vented;
+		END_IF
+		
+	
+	ERR_LostVac:
+        //Log new state
+        IF ePrevState <> iq_stValve.eVGC_State THEN
+            fbLogger(sMsg:='Unexpected loss of vacuum while valve was open.', eSevr:=TcEventSeverity.Critical);
+            ePrevState := iq_stValve.eVGC_State;
+		END_IF
+		IF NOT (iq_stValve.xERR_SP) THEN
+			iq_stValve.eVGC_State := Vented;
+		END_IF
+		
+	ERR_ExtFault:
+        //Log new state
+        IF ePrevState <> iq_stValve.eVGC_State THEN
+            fbLogger(sMsg:='Lost external interlock while valve was open.', eSevr:=TcEventSeverity.Critical);
+            ePrevState := iq_stValve.eVGC_State;
+		END_IF
+		IF NOT (iq_stValve.xERR_ExtFault) AND (NOT i_xExt_OK) THEN
+			iq_stValve.eVGC_State := Vented;
+		END_IF
+END_CASE
+
+IF (NOT i_xExt_OK) THEN
+	iq_stValve.eVGC_State := ERR_ExtFault;
+	iq_stValve.xERR_ExtFault := TRUE;
+END_IF
+
+// Interlock evaluation - with bypass for DP ILK bypass
+///////////////////////////////////////////////
+IF i_xDis_DPIlk THEN
+	iq_stValve.xOPN_OK := iq_stValve.xEXT_OK; // AND iq_stValve.xDP_OK ;
+ELSE
+	iq_stValve.xOPN_OK := iq_stValve.xEXT_OK AND iq_stValve.xAT_VAC;
+END_IF
+
+(* Valve operation *)
+if NOT (iq_stValve.xOPN_OK) THEN iq_stValve.pv_xOPN_SW:= FALSE; END_IF // redundant??
+(* Here's where the valve opens *)
+iq_stValve.q_xOPN_DO := (iq_stValve.pv_xOPN_SW AND iq_stValve.xOPN_OK) OR (tonOvrd.Q AND i_xOverrideMode);
+
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_ResetAlarms" Id="{8962b369-e8aa-42c4-9c4c-4249c380363a}">
+      <Implementation>
+        <ST><![CDATA[iq_stValve.xERR_DifPres R= iq_stValve.pv_xAlmRst;
+iq_stValve.xERR_SP R= iq_stValve.pv_xAlmRst;
+iq_stValve.bErrorPresent R= iq_stValve.pv_xAlmRst;
+
+IF ( iq_stValve.pv_xAlmRst) THEN
+	iq_stValve.sErrorMessage :='';
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="M_IsClosed" Id="{92e6d640-86f8-4619-a3fa-403d40a14320}">
+      <Declaration><![CDATA[METHOD PUBLIC M_IsClosed : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[M_IsClosed := (This^.iq_stValve.eState = E_ValvePositionState.CLOSED);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_IsOpen" Id="{9fed32e5-b3ec-4d01-912c-1417d796bc43}">
+      <Declaration><![CDATA[METHOD PUBLIC M_IsOpen : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[M_IsOpen := (This^.iq_stValve.eState = E_ValvePositionState.OPEN);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Set_OPN_SW" Id="{f6195612-456a-4d04-8760-e32635972cb2}">
+      <Declaration><![CDATA[// Use this Methode to Open or close the valve by setting the OPN_SW to the input value.
+METHOD PUBLIC M_Set_OPN_SW : BOOL
+VAR_INPUT
+		value:BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[This^.iq_stValve.pv_xOPN_SW := value;]]></ST>
+      </Implementation>
+    </Method>
+  </POU>
+</TcPlcObject>

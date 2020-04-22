@@ -1,0 +1,15 @@
+_Boot
+_Libraries
+_CompileInfo
+*.suo
+*~
+*.tpy
+*.bak
+*.~u
+*.csv
+*.svd
+*.dbg
+TrialLicense.tclrs
+*.library
+*.tmcRefac
+.pytmc_build
